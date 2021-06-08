@@ -6,7 +6,7 @@ public struct BottomSheet<Content: View>: View {
     
     let content: () -> (Content)
     
-    enum MotionStop {
+    public enum MotionStop {
         case hidden
         case full
         case custom(CGFloat)
@@ -38,15 +38,22 @@ public struct BottomSheet<Content: View>: View {
             return false
         }
     }
-    @State var state: MotionState = .idle(at: .custom(300))
+    @State var state: MotionState
     
     @State var maxHeight: CGFloat?
     
     @State var translation: CGFloat?
+    
+    let drawBackground: Bool
 
-    public init(customStops: [CGFloat], includeHiddenStop: Bool = true, content: @escaping () -> (Content)) {
+    public init(stops: [MotionStop],
+                drawBackground: Bool = true,
+                content: @escaping () -> (Content)) {
+        precondition(!stops.isEmpty)
         self.content = content
-        stops = (includeHiddenStop ? [.hidden] : []) + customStops.map({ MotionStop.custom($0) }) + [.full]
+        self.stops = stops
+        state = .idle(at: stops.first!)
+        self.drawBackground = drawBackground
     }
     
     public var body: some View {
@@ -55,16 +62,21 @@ public struct BottomSheet<Content: View>: View {
                 Spacer(minLength: 0)
                 ZStack(alignment: .top) {
                     
-                    ZStack {
-                        BlurView()
+                    if drawBackground {
+                        ZStack {
+                            BlurView()
+                            content()
+                                .padding(.bottom, cornerRadius)
+                                .frame(height: height(), alignment: .top)
+                        }
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        )
+                        .padding(.bottom, -cornerRadius)
+                    } else {
                         content()
-                            .padding(.bottom, cornerRadius)
                             .frame(height: height(), alignment: .top)
                     }
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    )
-                    .padding(.bottom, -cornerRadius)
                     
                     RoundedRectangle(cornerRadius: 3)
                         .frame(width: 36, height: 6)
@@ -90,7 +102,6 @@ public struct BottomSheet<Content: View>: View {
                 maxHeight = height
             }
         }
-        .edgesIgnoringSafeArea(.bottom)
     }
     
     func height() -> CGFloat? {
@@ -102,8 +113,11 @@ public struct BottomSheet<Content: View>: View {
             guard let translation: CGFloat = translation else { return nil }
             height = self.height(stop: state.stop) - translation
         }
-        guard let maxHeight: CGFloat = maxHeight else { return nil }
-        height = min(max(height, 0.0), maxHeight)
+        guard let firstStop: MotionStop = sortedStops.first else { return nil }
+        guard let lastStop: MotionStop = sortedStops.last else { return nil }
+        let minHeight: CGFloat = self.height(stop: firstStop)
+        let maxHeight: CGFloat = self.height(stop: lastStop)
+        height = min(max(height, minHeight), maxHeight)
         return height
     }
     
@@ -172,7 +186,7 @@ struct BottomSheet_Previews: PreviewProvider {
             }
             .edgesIgnoringSafeArea(.all)
             
-            BottomSheet(customStops: [300, 600]) {
+            BottomSheet(stops: [.custom(300), .custom(600), .full]) {
                 VStack {
                     Text("Top")
                     Spacer()
@@ -182,7 +196,8 @@ struct BottomSheet_Previews: PreviewProvider {
                 }
                 .padding(30)
             }
-            
+            .edgesIgnoringSafeArea(.bottom)
+
         }
         .colorScheme(.dark)
     }

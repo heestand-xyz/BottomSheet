@@ -4,8 +4,6 @@ public struct BottomSheet<Content: View>: View {
     
     let cornerRadius: CGFloat = 25
     
-    let content: () -> (Content)
-    
     public enum MotionStop {
         case hidden
         case full
@@ -45,29 +43,41 @@ public struct BottomSheet<Content: View>: View {
     @State var translation: CGFloat?
     
     let drawBackground: Bool
-
+    
+    public enum Position {
+        case bottom
+        case top
+    }
+    let position: Position
+    
+    let content: () -> (Content)
+    
     public init(stops: [MotionStop],
                 drawBackground: Bool = true,
+                position: Position = .bottom,
                 content: @escaping () -> (Content)) {
         precondition(!stops.isEmpty)
-        self.content = content
         self.stops = stops
         state = .idle(at: stops.first!)
         self.drawBackground = drawBackground
+        self.position = position
+        self.content = content
     }
     
     public var body: some View {
         GeometryReader { proxy in
             VStack {
-                Spacer(minLength: 0)
-                ZStack(alignment: .top) {
+                if position != .top {
+                    Spacer(minLength: 0)
+                }
+                ZStack(alignment: position == .bottom ? .top : .bottom) {
                     
                     if drawBackground {
                         ZStack {
                             BlurView()
                             content()
                                 .padding(.bottom, cornerRadius)
-                                .frame(height: height(), alignment: .top)
+                                .frame(height: height(), alignment: position == .bottom ? .top : .bottom)
                         }
                         .clipShape(
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -82,7 +92,7 @@ public struct BottomSheet<Content: View>: View {
                         .frame(width: 36, height: 6)
                         .padding(6)
                         .opacity(0.25)
-                        .frame(height: 0, alignment: .top)
+                        .frame(height: 0, alignment: position == .bottom ? .top : .bottom)
                 }
                 .frame(height: height() ?? 0.0)
                 .gesture(
@@ -94,6 +104,9 @@ public struct BottomSheet<Content: View>: View {
                             onEnded(value: value)
                         }
                 )
+                if position != .bottom {
+                    Spacer(minLength: 0)
+                }
             }
             .onAppear {
                 maxHeight = proxy.size.height
@@ -125,12 +138,19 @@ public struct BottomSheet<Content: View>: View {
         if !state.isDragging {
             state = .dragging(from: state.stop)
         }
-        translation = value.translation.height
+        var translation = value.translation.height
+        if position == .top {
+            translation = -translation
+        }
+        self.translation = translation
     }
     
     func onEnded(value: DragGesture.Value) {
         
-        let predictedOffset: CGFloat = value.predictedEndLocation.y - value.startLocation.y
+        var predictedOffset: CGFloat = value.predictedEndLocation.y - value.startLocation.y
+        if position == .top {
+            predictedOffset = -predictedOffset
+        }
         let predictedHeight: CGFloat = self.height(stop: state.stop) - predictedOffset
         
         var predictedStop: MotionStop!

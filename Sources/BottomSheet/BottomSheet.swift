@@ -1,14 +1,15 @@
 import SwiftUI
 
+public enum MotionStop: Equatable {
+    case hidden
+    case full
+    case custom(CGFloat)
+}
+
 public struct BottomSheet<Content: View>: View {
     
     let cornerRadius: CGFloat = 25
     
-    public enum MotionStop {
-        case hidden
-        case full
-        case custom(CGFloat)
-    }
     let stops: [MotionStop]
     var sortedStops: [MotionStop] {
         stops.sorted(by: { aStop, bStop in
@@ -65,7 +66,7 @@ public struct BottomSheet<Content: View>: View {
     }
     
     public var body: some View {
-        GeometryReader { proxy in
+        GeometryReader { geometry in
             VStack {
                 if position != .top {
                     Spacer(minLength: 0)
@@ -109,10 +110,31 @@ public struct BottomSheet<Content: View>: View {
                 }
             }
             .onAppear {
-                maxHeight = proxy.size.height
+                maxHeight = geometry.size.height
             }
-            .onChange(of: proxy.size.height) { height in
+            .onChange(of: geometry.size.height) { height in
                 maxHeight = height
+            }
+            .onChange(of: stops) { stops in
+                let stop: MotionStop
+                switch state.stop {
+                case .hidden:
+                    stop = .hidden
+                case .full:
+                    stop = .full
+                case .custom(let customHeight):
+                    stop = stops.filter({ stop in
+                        if case .custom = stop {
+                            return true
+                        }
+                        return false
+                    }).sorted(by: { a, b in
+                        abs(height(stop: a) - customHeight) < abs(height(stop: b) - customHeight)
+                    }).first!
+                }
+                withAnimation {
+                    state = .idle(at: stop)
+                }
             }
         }
     }
@@ -134,6 +156,17 @@ public struct BottomSheet<Content: View>: View {
         return height
     }
     
+    func height(stop: MotionStop) -> CGFloat {
+        switch stop {
+        case .hidden:
+            return 0.0
+        case .full:
+            return maxHeight ?? 0.0
+        case .custom(let height):
+            return height
+        }
+    }
+    
     func onChanged(value: DragGesture.Value) {
         if !state.isDragging {
             state = .dragging(from: state.stop)
@@ -153,28 +186,7 @@ public struct BottomSheet<Content: View>: View {
         }
         let predictedHeight: CGFloat = self.height(stop: state.stop) - predictedOffset
         
-        var predictedStop: MotionStop!
-        for i in 0..<(stops.count - 1) {
-            let stop: MotionStop = sortedStops[i]
-            let nextStop: MotionStop = sortedStops[i + 1]
-            let stopHeight = self.height(stop: stop)
-            let nextStopHeight = self.height(stop: nextStop)
-            if predictedHeight < stopHeight {
-                predictedStop = stop
-                break
-            } else if predictedHeight < nextStopHeight {
-                let stopDistance: CGFloat = nextStopHeight - stopHeight
-                if predictedHeight < stopHeight + stopDistance / 2 {
-                    predictedStop = stop
-                } else {
-                    predictedStop = nextStop
-                }
-                break
-            } else if i == stops.count - 2 {
-                predictedStop = sortedStops.last!
-                break
-            }
-        }
+        let predictedStop: MotionStop = stop(at: predictedHeight)
         
         withAnimation(.interactiveSpring(response: 0.25)) {
             state = .idle(at: predictedStop)
@@ -182,15 +194,30 @@ public struct BottomSheet<Content: View>: View {
         translation = nil
     }
     
-    func height(stop: MotionStop) -> CGFloat {
-        switch stop {
-        case .hidden:
-            return 0.0
-        case .full:
-            return maxHeight ?? 0.0
-        case .custom(let height):
-            return height
+    func stop(at targetHeight: CGFloat) -> MotionStop {
+        var targetStop: MotionStop!
+        for i in 0..<(stops.count - 1) {
+            let stop: MotionStop = sortedStops[i]
+            let nextStop: MotionStop = sortedStops[i + 1]
+            let stopHeight = self.height(stop: stop)
+            let nextStopHeight = self.height(stop: nextStop)
+            if targetHeight < stopHeight {
+                targetStop = stop
+                break
+            } else if targetHeight < nextStopHeight {
+                let stopDistance: CGFloat = nextStopHeight - stopHeight
+                if targetHeight < stopHeight + stopDistance / 2 {
+                    targetStop = stop
+                } else {
+                    targetStop = nextStop
+                }
+                break
+            } else if i == stops.count - 2 {
+                targetStop = sortedStops.last!
+                break
+            }
         }
+        return targetStop
     }
 }
 

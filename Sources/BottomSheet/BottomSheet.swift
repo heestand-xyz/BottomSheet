@@ -17,7 +17,7 @@ public struct BottomSheet<Content: View>: View {
         })
     }
     
-    enum MotionState {
+    enum MotionState: Equatable {
         case idle(at: MotionStop)
         case dragging(from: MotionStop)
         var stop: MotionStop {
@@ -53,9 +53,12 @@ public struct BottomSheet<Content: View>: View {
     
     let content: () -> (Content)
     
+    @Binding var heightGetter: CGFloat
+    
     public init(stops: [MotionStop],
                 drawBackground: Bool = true,
                 position: Position = .bottom,
+                heightGetter: Binding<CGFloat>? = nil,
                 content: @escaping () -> (Content)) {
         precondition(!stops.isEmpty)
         self.stops = stops
@@ -63,6 +66,7 @@ public struct BottomSheet<Content: View>: View {
         self.drawBackground = drawBackground
         self.position = position
         self.content = content
+        _heightGetter = heightGetter ?? .constant(0.0)
     }
     
     public var body: some View {
@@ -111,6 +115,7 @@ public struct BottomSheet<Content: View>: View {
             }
             .onAppear {
                 maxHeight = geometry.size.height
+                heightGetter = height(stop: state.stop)
             }
             .onChange(of: geometry.size.height) { height in
                 maxHeight = height
@@ -135,6 +140,9 @@ public struct BottomSheet<Content: View>: View {
                 withAnimation {
                     state = .idle(at: stop)
                 }
+            }
+            .onChange(of: state) { state in
+                heightGetter = height(stop: state.stop)
             }
         }
     }

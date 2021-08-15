@@ -229,7 +229,7 @@ public struct BottomSheet<Content: View>: View {
     }
 }
 
-struct BottomSheet_Previews: PreviewProvider {
+struct BottomSheet_Previews: SwiftUI.PreviewProvider {
     static var previews: some View {
         ZStack {
             

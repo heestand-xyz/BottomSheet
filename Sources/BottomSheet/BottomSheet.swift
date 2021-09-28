@@ -54,10 +54,22 @@ public struct BottomSheet<Content: View>: View {
     let content: () -> (Content)
     
     @Binding var heightGetter: CGFloat
+        
+    public enum HitArea {
+        case all
+        case top(CGFloat)
+        case bottom(CGFloat)
+    }
+    private let hitArea: HitArea
+    
+    @State var dragCancelled: Bool = false
+    
+    private let coordinateSpaceName: String = "bottom-sheet"
     
     public init(stops: [MotionStop],
                 drawBackground: Bool = true,
                 position: Position = .bottom,
+                hitArea: HitArea = .all,
                 heightGetter: Binding<CGFloat>? = nil,
                 content: @escaping () -> (Content)) {
         precondition(!stops.isEmpty)
@@ -65,6 +77,7 @@ public struct BottomSheet<Content: View>: View {
         state = .idle(at: stops.first!)
         self.drawBackground = drawBackground
         self.position = position
+        self.hitArea = hitArea
         self.content = content
         _heightGetter = heightGetter ?? .constant(0.0)
     }
@@ -101,7 +114,7 @@ public struct BottomSheet<Content: View>: View {
                 }
                 .frame(height: height() ?? 0.0)
                 .gesture(
-                    DragGesture(coordinateSpace: .global)
+                    DragGesture(coordinateSpace: .named(coordinateSpaceName))
                         .onChanged { value in
                             onChanged(value: value)
                         }
@@ -145,6 +158,7 @@ public struct BottomSheet<Content: View>: View {
                 heightGetter = height(stop: state.stop)
             }
         }
+        .coordinateSpace(name: coordinateSpaceName)
     }
     
     func height() -> CGFloat? {
@@ -176,7 +190,36 @@ public struct BottomSheet<Content: View>: View {
     }
     
     func onChanged(value: DragGesture.Value) {
+        guard !dragCancelled else { return }
         if !state.isDragging {
+            
+            switch hitArea {
+            case .all:
+                break
+            case .top(let padding):
+                switch position {
+                case .top:
+                    break
+                case .bottom:
+                    let offset = (maxHeight ?? 0.0) - (height() ?? 0.0)
+                    print("----------> ==", value.location.y < offset + padding, "a:", padding, "b:", offset + padding, "c:", value.location.y, "d:", offset)
+                    guard value.location.y < offset + padding else {
+                        dragCancelled = true
+                        return
+                    }
+                }
+            case .bottom(let padding):
+                switch position {
+                case .top:
+                    guard value.location.y > (height() ?? 0.0) - padding else {
+                        dragCancelled = true
+                        return
+                    }
+                case .bottom:
+                    break
+                }
+            }
+            
             state = .dragging(from: state.stop)
         }
         var translation = value.translation.height
@@ -187,6 +230,13 @@ public struct BottomSheet<Content: View>: View {
     }
     
     func onEnded(value: DragGesture.Value) {
+        
+        defer {
+            translation = nil
+            dragCancelled = false
+        }
+        
+        guard !dragCancelled else { return }
         
         var predictedOffset: CGFloat = value.predictedEndLocation.y - value.startLocation.y
         if position == .top {
@@ -199,7 +249,6 @@ public struct BottomSheet<Content: View>: View {
         withAnimation(.interactiveSpring(response: 0.25)) {
             state = .idle(at: predictedStop)
         }
-        translation = nil
     }
     
     func stop(at targetHeight: CGFloat) -> MotionStop {

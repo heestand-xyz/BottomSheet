@@ -202,7 +202,6 @@ public struct BottomSheet<Content: View>: View {
                     break
                 case .bottom:
                     let offset = (maxHeight ?? 0.0) - (height() ?? 0.0)
-                    print("----------> ==", value.location.y < offset + padding, "a:", padding, "b:", offset + padding, "c:", value.location.y, "d:", offset)
                     guard value.location.y < offset + padding else {
                         dragCancelled = true
                         return

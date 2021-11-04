@@ -202,7 +202,7 @@ public struct BottomSheet<Content: View>: View {
                     break
                 case .bottom:
                     let offset = (maxHeight ?? 0.0) - (height() ?? 0.0)
-                    guard value.location.y < offset + padding else {
+                    guard value.location.y > offset, value.location.y < offset + padding else {
                         dragCancelled = true
                         return
                     }
@@ -210,7 +210,8 @@ public struct BottomSheet<Content: View>: View {
             case .bottom(let padding):
                 switch position {
                 case .top:
-                    guard value.location.y > (height() ?? 0.0) - padding else {
+                    let offset = height() ?? 0.0
+                    guard value.location.y < offset, value.location.y > offset - padding else {
                         dragCancelled = true
                         return
                     }
